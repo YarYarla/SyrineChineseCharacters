@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YCT1 Practice - Syrine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@500;700;900&display=swap');
+        
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: 
+                radial-gradient(circle at 10% 20%, #fdf2f8 0%, transparent 45%),
+                radial-gradient(circle at 90% 10%, #e0f2fe 0%, transparent 40%),
+                radial-gradient(circle at 50% 80%, #ecfdf5 0%, transparent 45%),
+                #f8fafc;
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #334155;
+            overflow-x: hidden;
+        }
+        
+        .zh-font { font-family: 'Noto Serif SC', serif; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-container { perspective: 1200px; z-index: 10; }
+        
+        .flashcard-inner {
+            transition: transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transform-style: preserve-3d;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .rotate-y-180 { transform: rotateY(180deg); }
+        
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+        
+        .card-back { transform: rotateY(180deg); }
+        
+        .drop-zone { transition: all 0.3s ease; }
+        .drag-over { background-color: #f0f9ff; border-color: #38bdf8; transform: scale(1.02); }
+        
+        .drag-item { transition: all 0.2s ease; user-select: none; }
+        .drag-item:hover { transform: translateY(-3px); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.05); }
+        .selected-item { border-color: #38bdf8 !important; box-shadow: 0 0 0 3px rgba(56,189,248,0.2) !important; transform: translateY(-5px) scale(1.05) !important; }
+        
+        @keyframes floatUp {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .pop-in { animation: floatUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes errorShake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+        .shake-err { animation: errorShake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .zh-gradient {
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-image: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="flex flex-col items-center pt-6 pb-12 px-4 sm:px-6 relative">
+
+    <header class="w-full max-w-4xl flex flex-col sm:flex-row justify-between items-center glass-panel rounded-[32px] sm:rounded-full px-6 sm:px-8 py-5 sm:py-4 mb-10 z-20 relative">
+        <div class="flex flex-col mb-4 sm:mb-0 text-center sm:text-left">
+            <h1 class="text-2xl font-bold tracking-tight text-slate-700">Practice Session - Syrine</h1>
+            <div id="sync-status" class="text-xs text-slate-400 mt-1 font-medium">☁️ Connecting...</div>
+        </div>
+        <nav class="flex gap-2 bg-white/40 p-1.5 rounded-full border border-white/60 relative z-20">
+            <button id="tab-flashcard" onclick="switchTab('flashcard')" class="px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 bg-white shadow-sm text-sky-500">
+                Flashcards
+            </button>
+            <button id="tab-quiz" onclick="switchTab('quiz')" class="px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 text-slate-400 hover:text-sky-500 hover:bg-white/50">
+                Quiz Mode
+            </button>
+            <button onclick="showRecordsModal()" class="px-4 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 text-slate-400 hover:text-indigo-500 hover:bg-white/50 ml-1 border border-slate-200/30">
+                📊 Records
+            </button>
+        </nav>
+    </header>
+
+    <main class="w-full max-w-5xl flex-grow flex flex-col items-center relative z-10">
+        <section id="sec-flashcard" class="w-full flex flex-col items-center pop-in">
+            <div class="flex items-center justify-center gap-4 sm:gap-10 w-full max-w-4xl px-2">
+                
+                <button onclick="prevCard()" class="flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center bg-white/70 backdrop-blur border border-white shadow-md hover:shadow-lg hover:bg-white rounded-full text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all" id="btn-prev">
+                    <svg class="w-6 h-6 sm:w-8 sm:h-8 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+
+                <div class="w-[260px] sm:w-[380px] h-[360px] sm:h-[480px] card-container flex-shrink-0">
+                    <div id="flashcard-inner" class="flashcard-inner rounded-[40px] shadow-lg cursor-pointer" onclick="flipCard()">
+                        
+                        <div class="card-face glass-panel bg-white/90 rounded-[40px] flex flex-col items-center justify-center">
+                            <span id="fc-hanzi" class="text-8xl sm:text-[140px] zh-font font-bold zh-gradient tracking-widest drop-shadow-sm pb-4"></span>
+                        </div>
+                        
+                        <div class="card-face card-back glass-panel bg-gradient-to-br from-white/95 to-sky-50/95 rounded-[40px] flex flex-col items-center justify-center p-8">
+                            <span id="fc-pinyin" class="text-5xl sm:text-6xl font-bold text-slate-700 mb-8 tracking-tight"></span>
+                            <div class="w-10 h-1 bg-sky-200/70 rounded-full mb-8"></div>
+                            <span id="fc-english" class="text-2xl sm:text-3xl font-medium text-slate-400 text-center"></span>
+                            
+                            <button onclick="event.stopPropagation(); playAudio(flashcardData[currentCardIndex].hz)" class="mt-8 w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-sky-500 hover:bg-sky-50 transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="nextCard()" class="flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center bg-white/70 backdrop-blur border border-white shadow-md hover:shadow-lg hover:bg-white rounded-full text-slate-400 hover:text-sky-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all" id="btn-next">
+                    <svg class="w-6 h-6 sm:w-8 sm:h-8 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+                
+            </div>
+            
+            <div class="mt-8 glass-panel px-8 py-3 rounded-full shadow-sm border border-white/60">
+                <span id="fc-progress" class="text-slate-500 font-bold tracking-widest text-sm"></span>
+            </div>
+            
+            <div id="fc-end-prompt" class="hidden mt-6 flex flex-col items-center pop-in">
+                <p class="text-slate-500 mb-4 font-medium">Great job! You've reviewed all cards.</p>
+                <div class="flex gap-3">
+                    <button onclick="restartFlashcards()" class="px-5 py-2.5 rounded-full bg-white border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-all shadow-sm text-sm">Review Again</button>
+                    <button onclick="switchTab('quiz')" class="px-5 py-2.5 rounded-full bg-sky-400 text-white font-semibold hover:bg-sky-500 transition-all shadow-md shadow-sky-400/20 text-sm">Take the Quiz</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-quiz" class="hidden w-full flex-col items-center pop-in">
+            <div class="glass-panel w-full max-w-4xl p-6 sm:p-12 rounded-[40px]">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-slate-700">Character Matching</h2>
+                    </div>
+                    <div class="bg-rose-50/80 px-5 py-2.5 rounded-full border border-rose-100/50 shadow-sm flex items-center gap-3">
+                        <span class="text-rose-400 text-xs font-bold uppercase tracking-widest">Round</span>
+                        <span id="quiz-round-display" class="text-rose-500 font-bold text-lg leading-none">1 / X</span>
+                    </div>
+                </div>
+                
+                <div class="mb-10"><div id="drop-zones" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6"></div></div>
+                
+                <div class="bg-white/40 backdrop-blur-md p-6 sm:p-8 rounded-[32px] border border-white/80 shadow-inner min-h-[140px] relative">
+                    <div id="drag-items" class="flex flex-wrap gap-4 justify-center"></div>
+                </div>
+                
+                <div class="mt-8 flex justify-center h-16 w-full relative z-20">
+                    <button id="action-check" onclick="checkAnswers()" class="hidden bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-10 rounded-full shadow-lg shadow-sky-500/30 transition-all hover:-translate-y-1">Check Answers</button>
+                    <button id="action-next" onclick="startNextRound()" class="hidden bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-10 rounded-full shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-1"><span id="btn-next-round">Continue to Next Round</span></button>
+                </div>
+                
+                <div class="mt-8 text-center hidden pop-in w-full" id="quiz-complete"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="records-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+        <div class="bg-white rounded-[32px] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[80vh] pop-in border border-white/50">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h3 class="text-xl font-bold text-slate-700">Syrine's Test Records</h3>
+                <button onclick="closeRecordsModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-grow bg-white">
+                <ul id="modal-history-list" class="space-y-4 text-sm text-slate-600"></ul>
+                <div id="modal-no-data" class="text-center text-slate-400 py-8 hidden">No records found yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Exactly 55 unique characters extracted from your text
+        const vocabData = [
+            { hz: "你", py: "nǐ", en: "You" }, { hz: "好", py: "hǎo", en: "Good" }, { hz: "叫", py: "jiào", en: "Call/Name" },
+            { hz: "什", py: "shén", en: "What (part)" }, { hz: "么", py: "me", en: "What (part)" }, { hz: "名", py: "míng", en: "Name (part)" },
+            { hz: "字", py: "zì", en: "Character/Word" }, { hz: "买", py: "mǎi", en: "Buy" }, { hz: "东", py: "dōng", en: "East/Thing (part)" },
+            { hz: "西", py: "xī", en: "West/Thing (part)" }, { hz: "做", py: "zuò", en: "Do/Make" }, { hz: "中", py: "zhōng", en: "Middle/China (part)" },
+            { hz: "国", py: "guó", en: "Country" }, { hz: "菜", py: "cài", en: "Dish/Vegetable" }, { hz: "是", py: "shì", en: "Is/Are" },
+            { hz: "人", py: "rén", en: "Person" }, { hz: "吗", py: "ma", en: "Question Particle" }, { hz: "不", py: "bù", en: "No/Not" },
+            { hz: "在", py: "zài", en: "At/In/On" }, { hz: "哪", py: "nǎ", en: "Where/Which (part)" }, { hz: "儿", py: "ér", en: "Child/Suffix" },
+            { hz: "我", py: "wǒ", en: "I/Me" }, { hz: "家", py: "jiā", en: "Family/Home" }, { hz: "有", py: "yǒu", en: "Have/There is" },
+            { hz: "五", py: "wǔ", en: "Five" }, { hz: "口", py: "kǒu", en: "Mouth/Measure" }, { hz: "她", py: "tā", en: "She/Her" },
+            { hz: "的", py: "de", en: "Possessive Particle" }, { hz: "妈", py: "mā", en: "Mom" }, { hz: "他", py: "tā", en: "He/Him" },
+            { hz: "爸", py: "bà", en: "Dad" }, { hz: "它", py: "tā", en: "It" }, { hz: "小", py: "xiǎo", en: "Small/Little" },
+            { hz: "狗", py: "gǒu", en: "Dog" }, { hz: "老", py: "lǎo", en: "Old" }, { hz: "师", py: "shī", en: "Teacher (part)" },
+            { hz: "学", py: "xué", en: "Study/Learn" }, { hz: "生", py: "shēng", en: "Student (part)" }, { hz: "朋", py: "péng", en: "Friend (part)" },
+            { hz: "友", py: "yǒu", en: "Friend (part)" }, { hz: "想", py: "xiǎng", en: "Want/Think" }, { hz: "习", py: "xí", en: "Practice (part)" },
+            { hz: "汉", py: "hàn", en: "Chinese (part)" }, { hz: "语", py: "yǔ", en: "Language" }, { hz: "说", py: "shuō", en: "Speak/Say" },
+            { hz: "文", py: "wén", en: "Language/Culture" }, { hz: "多", py: "duō", en: "Many/Much" }, { hz: "少", py: "shǎo", en: "Few/Little" },
+            { hz: "个", py: "gè", en: "Measure Word" }, { hz: "苹", py: "píng", en: "Apple (part)" }, { hz: "果", py: "guǒ", en: "Fruit/Apple (part)" },
+            { hz: "明", py: "míng", en: "Bright/Tomorrow (part)" }, { hz: "天", py: "tiān", en: "Day/Sky" }, { hz: "今", py: "jīn", en: "Today (part)" },
+            { hz: "昨", py: "zuó", en: "Yesterday (part)" }
+        ];
+
+        // NEW SYRINE BUCKET ID INJECTED
+        const KVDB_BUCKET_ID = 'BtxsLc79geX8cnHk3Zx7h9';
+        let testHistory = [];
+
+        async function loadCloudHistory() {
+            const statusEl = document.getElementById('sync-status');
+            if(statusEl) statusEl.textContent = '☁️ Syncing...';
+            try {
+                let response = await fetch(`https://kvdb.io/${KVDB_BUCKET_ID}/history`);
+                if (response.ok) { testHistory = await response.json(); }
+                if (!Array.isArray(testHistory)) testHistory = [];
+                updateHistoryUI();
+                if(statusEl) statusEl.textContent = '✅ Cloud Synced';
+            } catch (error) {
+                if(statusEl) statusEl.textContent = '❌ Offline Mode';
+            }
+        }
+
+        async function saveCloudHistory() {
+            try {
+                await fetch(`https://kvdb.io/${KVDB_BUCKET_ID}/history`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testHistory)
+                });
+            } catch (error) { console.error('Save failed'); throw error; }
+        }
+
+        function updateHistoryUI() {
+            const modalList = document.getElementById('modal-history-list');
+            const noData = document.getElementById('modal-no-data');
+            if(!modalList || !noData) return;
+            
+            modalList.innerHTML = '';
+            if (testHistory.length === 0) {
+                noData.classList.remove('hidden');
+                return;
+            }
+            noData.classList.add('hidden');
+            
+            testHistory.forEach(entry => {
+                const li = document.createElement('li');
+                li.className = 'bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center shadow-sm';
+                li.innerHTML = `
+                    <div>
+                        <p class="font-bold text-slate-700">Attempt ${entry.attempt}</p>
+                        <p class="text-[11px] text-slate-400 mt-1">🇩🇪 ${entry.germanyTime}</p>
+                        <p class="text-[11px] text-slate-400">🇨🇳 ${entry.chinaTime}</p>
+                    </div>
+                    <div class="text-2xl font-black ${entry.score === vocabData.length ? 'text-emerald-500' : 'text-sky-500'}">${entry.score}/${vocabData.length}</div>
+                `;
+                modalList.insertBefore(li, modalList.firstChild);
+            });
+        }
+
+        function playAudio(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN'; 
+                utterance.rate = 0.85; 
+                utterance.pitch = 1.1; 
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function switchTab(tabId) {
+            document.getElementById('sec-flashcard').style.display = (tabId === 'flashcard') ? 'flex' : 'none';
+            document.getElementById('sec-quiz').style.display = (tabId === 'quiz') ? 'flex' : 'none';
+            
+            document.getElementById('tab-flashcard').className = tabId === 'flashcard' 
+                ? 'px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 bg-white shadow-sm text-sky-500'
+                : 'px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 text-slate-400 hover:text-sky-500 hover:bg-white/50';
+                
+            document.getElementById('tab-quiz').className = tabId === 'quiz' 
+                ? 'px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 bg-white shadow-sm text-sky-500'
+                : 'px-6 py-2.5 rounded-full font-semibold text-sm transition-all duration-300 text-slate-400 hover:text-sky-500 hover:bg-white/50';
+
+            if('speechSynthesis' in window) window.speechSynthesis.cancel();
+            if (tabId === 'quiz' && document.getElementById('drop-zones').innerHTML === '') initQuiz();
+        }
+
+        let flashcardData = [], currentCardIndex = 0, isFlipped = false;
+        
+        function updateFlashcard() {
+            const item = flashcardData[currentCardIndex];
+            document.getElementById('fc-hanzi').textContent = item.hz;
+            document.getElementById('fc-pinyin').textContent = item.py;
+            document.getElementById('fc-english').textContent = item.en;
+            document.getElementById('fc-progress').textContent = `${currentCardIndex + 1} / ${flashcardData.length}`;
+            
+            document.getElementById('flashcard-inner').classList.remove('rotate-y-180');
+            isFlipped = false;
+            
+            document.getElementById('btn-prev').disabled = currentCardIndex === 0;
+            if(currentCardIndex === flashcardData.length - 1) {
+                document.getElementById('fc-end-prompt').classList.remove('hidden');
+                document.getElementById('btn-next').disabled = true;
+            } else {
+                document.getElementById('fc-end-prompt').classList.add('hidden');
+                document.getElementById('btn-next').disabled = false;
+            }
+        }
+
+        function flipCard() {
+            const card = document.getElementById('flashcard-inner');
+            if (!isFlipped) {
+                card.classList.add('rotate-y-180');
+                setTimeout(() => playAudio(flashcardData[currentCardIndex].hz), 400);
+            }
+            isFlipped = true;
+        }
+
+        function nextCard() { if (currentCardIndex < flashcardData.length - 1) { currentCardIndex++; updateFlashcard(); } }
+        function prevCard() { if (currentCardIndex > 0) { currentCardIndex--; updateFlashcard(); } }
+        
+        function restartFlashcards() { 
+            flashcardData = [...vocabData].sort(() => Math.random() - 0.5); 
+            currentCardIndex = 0; 
+            updateFlashcard(); 
+        }
+
+        // Dynamic Quiz Setup
+        const ITEMS_PER_ROUND = 10;
+        let totalRounds = Math.ceil(vocabData.length / ITEMS_PER_ROUND);
+        
+        let quizData = [], currentRound = 1, totalScore = 0;
+        let currentRoundData = [], roundAnswers = {}, selectedDragItem = null;
+
+        function initQuiz() {
+            quizData = [...vocabData].sort(() => Math.random() - 0.5);
+            currentRound = 1; totalScore = 0;
+            document.getElementById('quiz-complete').classList.add('hidden');
+            document.getElementById('drop-zones').classList.remove('hidden');
+            document.getElementById('drag-items').parentElement.classList.remove('hidden');
+            startNextRound();
+        }
+
+        function startNextRound() {
+            if (currentRound > totalRounds) { finishQuiz(); return; }
+            document.getElementById('quiz-round-display').textContent = `${currentRound} / ${totalRounds}`;
+            document.getElementById('action-check').classList.add('hidden');
+            document.getElementById('action-next').classList.add('hidden');
+            
+            const startIndex = (currentRound - 1) * ITEMS_PER_ROUND;
+            currentRoundData = quizData.slice(startIndex, startIndex + ITEMS_PER_ROUND);
+            roundAnswers = {}; selectedDragItem = null;
+            renderQuizBoard();
+        }
+
+        function renderQuizBoard() {
+            const dz = document.getElementById('drop-zones');
+            const di = document.getElementById('drag-items');
+            dz.innerHTML = ''; di.innerHTML = '';
+
+            currentRoundData.forEach((item, index) => {
+                const zone = document.createElement('div');
+                zone.className = 'flex flex-col items-center bg-white/60 backdrop-blur border-2 border-dashed border-slate-300 rounded-2xl p-4 drop-zone relative min-h-[120px] transition-all cursor-pointer';
+                zone.innerHTML = `
+                    <span class="text-xl font-bold text-slate-600 mb-2">${item.py}</span>
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-3xl zh-font font-bold transition-all ${roundAnswers[index] ? 'bg-sky-100 text-sky-600 border-2 border-sky-300 shadow-inner' : 'bg-slate-100/50 border-2 border-slate-200 text-transparent'}">${roundAnswers[index] ? roundAnswers[index].hz : ''}</div>
+                    <div class="feedback-text text-[11px] font-bold mt-2 h-4 text-center w-full"></div>
+                `;
+                
+                zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+                zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+                zone.addEventListener('drop', e => {
+                    e.preventDefault(); zone.classList.remove('drag-over');
+                    const hz = e.dataTransfer.getData('text/plain');
+                    const droppedItem = currentRoundData.find(d => d.hz === hz);
+                    if (droppedItem) placeItemInZone(droppedItem, index);
+                });
+                
+                zone.addEventListener('click', () => {
+                    if(!document.getElementById('action-check').classList.contains('hidden') && Object.keys(roundAnswers).length === currentRoundData.length) return;
+                    if (selectedDragItem) { 
+                        placeItemInZone(selectedDragItem, index); 
+                        selectedDragItem = null; 
+                    } else if (roundAnswers[index]) { 
+                        delete roundAnswers[index]; 
+                        renderQuizBoard(); 
+                    }
+                });
+                dz.appendChild(zone);
+            });
+
+            const options = [...currentRoundData].sort(() => Math.random() - 0.5);
+            options.forEach(item => {
+                if (Object.values(roundAnswers).some(ans => ans.hz === item.hz)) return;
+                const dragEl = document.createElement('div');
+                dragEl.className = 'drag-item w-14 h-14 sm:w-16 sm:h-16 bg-white border-2 border-slate-200 rounded-xl flex items-center justify-center text-3xl zh-font font-bold text-slate-700 cursor-pointer shadow-sm hover:border-sky-300';
+                dragEl.draggable = true; dragEl.textContent = item.hz;
+                
+                dragEl.addEventListener('dragstart', e => { 
+                    e.dataTransfer.setData('text/plain', item.hz); 
+                    selectedDragItem = item; 
+                });
+                
+                dragEl.addEventListener('click', e => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.drag-item').forEach(el => el.classList.remove('selected-item'));
+                    if (selectedDragItem && selectedDragItem.hz === item.hz) { 
+                        selectedDragItem = null; 
+                    } else { 
+                        dragEl.classList.add('selected-item'); selectedDragItem = item; 
+                    }
+                });
+                di.appendChild(dragEl);
+            });
+            
+            const checkBtn = document.getElementById('action-check');
+            if(Object.keys(roundAnswers).length === currentRoundData.length && document.getElementById('action-next').classList.contains('hidden')) {
+                checkBtn.classList.remove('hidden');
+            } else {
+                checkBtn.classList.add('hidden');
+            }
+        }
+
+        function placeItemInZone(item, index) {
+            for (let key in roundAnswers) { if (roundAnswers[key].hz === item.hz) delete roundAnswers[key]; }
+            roundAnswers[index] = item;
+            renderQuizBoard();
+        }
+
+        function checkAnswers() {
+            document.getElementById('action-check').classList.add('hidden');
+            const zones = document.getElementById('drop-zones').children;
+            let roundScore = 0;
+            
+            currentRoundData.forEach((item, index) => {
+                const zone = zones[index];
+                const targetBox = zone.children[1];
+                const feedbackText = zone.children[2];
+                const userAnswer = roundAnswers[index];
+                
+                if (userAnswer && userAnswer.hz === item.hz) {
+                    targetBox.className = 'w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-3xl zh-font font-bold transition-all bg-emerald-100 text-emerald-600 border-2 border-emerald-400 shadow-inner pop-in';
+                    feedbackText.textContent = 'Correct';
+                    feedbackText.className = 'feedback-text text-[11px] font-bold mt-2 h-4 text-emerald-500 text-center w-full';
+                    roundScore++;
+                } else {
+                    targetBox.className = 'w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center text-3xl zh-font font-bold transition-all bg-rose-100 text-rose-600 border-2 border-rose-400 shadow-inner shake-err';
+                    feedbackText.innerHTML = `Ans: <span class="text-slate-700">${item.hz}</span>`;
+                    feedbackText.className = 'feedback-text text-[11px] font-bold mt-2 h-4 text-rose-500 text-center w-full';
+                }
+            });
+            
+            totalScore += roundScore;
+            document.getElementById('action-next').classList.remove('hidden');
+            document.getElementById('btn-next-round').textContent = currentRound === totalRounds ? 'See Final Score' : 'Continue to Next Round';
+            currentRound++;
+        }
+
+        async function finishQuiz() {
+            document.getElementById('drop-zones').classList.add('hidden');
+            document.getElementById('drag-items').parentElement.classList.add('hidden');
+            document.getElementById('action-check').classList.add('hidden');
+            document.getElementById('action-next').classList.add('hidden');
+            document.getElementById('quiz-round-display').textContent = 'Done';
+            
+            const completeContainer = document.getElementById('quiz-complete');
+            completeContainer.classList.remove('hidden');
+            
+            const now = new Date();
+            const optionsDE = { timeZone: 'Europe/Berlin', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            const optionsCN = { timeZone: 'Asia/Shanghai', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            const germanyTime = now.toLocaleString('en-US', optionsDE);
+            const chinaTime = now.toLocaleString('en-US', optionsCN);
+            
+            const attempt = testHistory.length + 1;
+            const newRecord = { attempt, score: totalScore, germanyTime, chinaTime };
+            testHistory.push(newRecord);
+            updateHistoryUI();
+            
+            completeContainer.innerHTML = `
+                <h3 class="text-4xl font-bold text-slate-700 mb-4">Quiz Complete!</h3>
+                <div class="text-7xl font-black ${totalScore === vocabData.length ? 'text-emerald-500' : 'text-sky-500'} mb-8 drop-shadow-md">${totalScore} <span class="text-4xl text-slate-300">/ ${vocabData.length}</span></div>
+                <div class="bg-white/60 p-6 rounded-[32px] border border-white max-w-md mx-auto shadow-sm mb-6">
+                    <p class="text-slate-500 font-bold mb-3">Attempt ${attempt} Recorded</p>
+                    <div class="flex flex-col gap-1 text-sm text-slate-400">
+                        <span>🇩🇪 Germany: ${germanyTime}</span>
+                        <span>🇨🇳 Beijing: ${chinaTime}</span>
+                    </div>
+                </div>
+                <div id="save-status-msg" class="text-sm font-bold text-sky-500 mb-6 pop-in">☁️ Saving to Cloud...</div>
+                <button onclick="initQuiz()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold py-4 px-10 rounded-full shadow-xl transition-all hover:-translate-y-1">Practice Again</button>
+            `;
+            
+            try {
+                await saveCloudHistory();
+                document.getElementById('save-status-msg').innerHTML = '✅ Saved to Cloud';
+                document.getElementById('save-status-msg').className = 'text-sm font-bold text-emerald-500 mb-6 pop-in';
+            } catch (e) {
+                document.getElementById('save-status-msg').innerHTML = '❌ Save Failed (Offline)';
+                document.getElementById('save-status-msg').className = 'text-sm font-bold text-rose-500 mb-6 pop-in';
+            }
+        }
+
+        window.onload = () => {
+            flashcardData = [...vocabData].sort(() => Math.random() - 0.5);
+            updateFlashcard();
+            loadCloudHistory();
+        };
+
+        function showRecordsModal() { document.getElementById('records-modal').classList.remove('hidden'); }
+        function closeRecordsModal() { document.getElementById('records-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
